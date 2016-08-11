@@ -36,5 +36,9 @@ class Filesystem {
         return file_put_contents($path, $contents, $lock ? LOCK_EX : 0);
     }
 
+    public function lastModified($path)
+    {
+        return filemtime($path);
+    }
 
 }

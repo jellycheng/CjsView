@@ -86,13 +86,11 @@ class View implements ArrayAccess, ViewContract {
 	protected function renderContents()
 	{
 		$this->factory->incrementRender();
-
 		$this->factory->callComposer($this);
 
 		$contents = $this->getContents();
 
 		$this->factory->decrementRender();
-
 		return $contents;
 	}
 
@@ -104,7 +102,6 @@ class View implements ArrayAccess, ViewContract {
 	public function renderSections()
 	{
 		$env = $this->factory;
-
 		return $this->render(function($view) use ($env)
 		{
 			return $env->getSections();
@@ -129,7 +126,6 @@ class View implements ArrayAccess, ViewContract {
 	protected function gatherData()
 	{
 		$data = array_merge($this->factory->getShared(), $this->data);
-
 		foreach ($data as $key => $value)
 		{
 			if ($value instanceof Renderable)
