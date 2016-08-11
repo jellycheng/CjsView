@@ -1,7 +1,7 @@
 <?php namespace CjsView;
 
 use InvalidArgumentException;
-use CjsView\Filesystem;
+use CjsView\Contracts\ViewFinderInterface;
 
 class FileViewFinder implements ViewFinderInterface {
 
@@ -21,7 +21,7 @@ class FileViewFinder implements ViewFinderInterface {
 
 	/**
 	 * The array of views that have been located.
-	 *
+	 * 缓存分析过的文件地址
 	 * @var array
 	 */
 	protected $views = array();
@@ -142,8 +142,8 @@ class FileViewFinder implements ViewFinderInterface {
 
 	/**
 	 * Get an array of possible view files.
-	 *
-	 * @param  string  $name
+	 * 把点转化成目录并追加扩展名
+	 * @param  string  $name 文件名
 	 * @return array
 	 */
 	protected function getPossibleViewFiles($name)

@@ -4,6 +4,7 @@ use Closure;
 use InvalidArgumentException;
 use CjsView\Engines\EngineResolver;
 use CjsView\Contracts\Factory as FactoryContract;
+use CjsView\Contracts\ViewFinderInterface as ViewFinderInterface;
 
 class Factory implements FactoryContract {
 
@@ -17,14 +18,13 @@ class Factory implements FactoryContract {
 	/**
 	 * The view finder implementation.
 	 *
-	 * @var \CjsView\ViewFinderInterface
+	 * @var \CjsView\Contracts\ViewFinderInterface
 	 */
 	protected $finder;
 
 	/**
 	 * The event dispatcher instance.
 	 *
-	 * @var \CjsView\Contracts\Events\Dispatcher
 	 */
 	protected $events;
 
@@ -56,7 +56,7 @@ class Factory implements FactoryContract {
 
 	/**
 	 * The extension to engine bindings.
-	 *
+	 * ['扩展名'='模板引擎解决者标识', ]
 	 * @var array
 	 */
 	protected $extensions = array('blade.php' => 'blade', 'php' => 'php');
@@ -93,7 +93,7 @@ class Factory implements FactoryContract {
 	 * Create a new view factory instance.
 	 *
 	 * @param  \CjsView\Engines\EngineResolver  $engines
-	 * @param  \CjsView\ViewFinderInterface  $finder
+	 * @param  \CjsView\Contracts\ViewFinderInterface  $finder
 	 * @param   $events
 	 * @return void
 	 */
@@ -109,7 +109,7 @@ class Factory implements FactoryContract {
 	/**
 	 * Get the evaluated view contents for the given view.
 	 *
-	 * @param  string  $path
+	 * @param  string  $path 模板文件，绝对目录+文件名
 	 * @param  array   $data
 	 * @param  array   $mergeData
 	 * @return \CjsView\View
@@ -117,38 +117,34 @@ class Factory implements FactoryContract {
 	public function file($path, $data = array(), $mergeData = array())
 	{
 		$data = array_merge($mergeData, $this->parseData($data));
-
 		$this->callCreator($view = new View($this, $this->getEngineFromPath($path), $path, $path, $data));
-
 		return $view;
 	}
 
 	/**
 	 * Get the evaluated view contents for the given view.
 	 *
-	 * @param  string  $view
-	 * @param  array   $data
+	 * @param  string  $view 视图文件
+	 * @param  array   $data 视图数据
 	 * @param  array   $mergeData
 	 * @return \CjsView\View
 	 */
 	public function make($view, $data = array(), $mergeData = array())
 	{
 		if (isset($this->aliases[$view])) $view = $this->aliases[$view];
-
+		//规范视图文件
 		$view = $this->normalizeName($view);
-
+		#模板文件,自动拼接扩展名
 		$path = $this->finder->find($view);
 
 		$data = array_merge($mergeData, $this->parseData($data));
-
 		$this->callCreator($view = new View($this, $this->getEngineFromPath($path), $view, $path, $data));
-
 		return $view;
 	}
 
 	/**
 	 * Normalize a view name.
-	 *
+	 * 把/替换成点
 	 * @param  string $name
 	 *
 	 * @return string
@@ -156,14 +152,11 @@ class Factory implements FactoryContract {
 	protected function normalizeName($name)
 	{
 		$delimiter = ViewFinderInterface::HINT_PATH_DELIMITER;
-
 		if (strpos($name, $delimiter) === false)
 		{
 			return str_replace('/', '.', $name);
 		}
-
 		list($namespace, $name) = explode($delimiter, $name);
-
 		return $namespace . $delimiter . str_replace('/', '.', $name);
 	}
 
@@ -175,7 +168,8 @@ class Factory implements FactoryContract {
 	 */
 	protected function parseData($data)
 	{
-		return $data instanceof Arrayable ? $data->toArray() : $data;
+		return $data; //todo
+		//return $data instanceof Arrayable ? $data->toArray() : $data;
 	}
 
 	/**
@@ -193,8 +187,8 @@ class Factory implements FactoryContract {
 	/**
 	 * Register a named view.
 	 *
-	 * @param  string  $view
-	 * @param  string  $name
+	 * @param  string  $view 模板文件
+	 * @param  string  $name 代号
 	 * @return void
 	 */
 	public function name($view, $name)
@@ -216,7 +210,7 @@ class Factory implements FactoryContract {
 
 	/**
 	 * Determine if a given view exists.
-	 *
+	 * 模板文件是否存在
 	 * @param  string  $view
 	 * @return bool
 	 */
@@ -246,10 +240,6 @@ class Factory implements FactoryContract {
 	public function renderEach($view, $data, $iterator, $empty = 'raw|')
 	{
 		$result = '';
-
-		// If is actually data in the array, we will loop through the data and append
-		// an instance of the partial view to the final result HTML passing in the
-		// iterated value of this data array, allowing the views to access them.
 		if (count($data) > 0)
 		{
 			foreach ($data as $key => $value)
@@ -258,13 +248,7 @@ class Factory implements FactoryContract {
 
 				$result .= $this->make($view, $data)->render();
 			}
-		}
-
-		// If there is no data in the array, we will render the contents of the empty
-		// view. Alternatively, the "empty view" could be a raw string that begins
-		// with "raw|" for convenience and to let this know that it is a string.
-		else
-		{
+		} else {
 			if (starts_with($empty, 'raw|'))
 			{
 				$result = substr($empty, 4);
@@ -280,7 +264,7 @@ class Factory implements FactoryContract {
 
 	/**
 	 * Get the appropriate view engine for the given path.
-	 *
+	 * 获取解决者对象
 	 * @param  string  $path
 	 * @return \CjsView\Engines\EngineInterface
 	 *
@@ -294,24 +278,32 @@ class Factory implements FactoryContract {
 		}
 
 		$engine = $this->extensions[$extension];
-
 		return $this->engines->resolve($engine);
 	}
 
 	/**
 	 * Get the extension used by the view file.
 	 *
-	 * @param  string  $path
+	 * @param  string  $path 模板文件
 	 * @return string
 	 */
 	protected function getExtension($path)
 	{
 		$extensions = array_keys($this->extensions);
-
-		return array_first($extensions, function($key, $value) use ($path)
+		return $this->array_first($extensions, function($key, $extName) use ($path)
 		{
-			return ends_with($path, $value);
+			if ((string) $extName === substr($path, -strlen($extName))) return true;
+			return false;
 		});
+	}
+
+	public function array_first($array, $callback, $default = null)
+	{
+		foreach ($array as $key => $value)
+		{
+			if (call_user_func($callback, $key, $value)) return $value;
+		}
+		return $default instanceof Closure ? $default() : $default;
 	}
 
 	/**
@@ -359,12 +351,10 @@ class Factory implements FactoryContract {
 	public function composers(array $composers)
 	{
 		$registered = array();
-
 		foreach ($composers as $callback => $views)
 		{
 			$registered = array_merge($registered, $this->composer($views, $callback));
 		}
-
 		return $registered;
 	}
 
@@ -379,12 +369,10 @@ class Factory implements FactoryContract {
 	public function composer($views, $callback, $priority = null)
 	{
 		$composers = array();
-
 		foreach ((array) $views as $view)
 		{
 			$composers[] = $this->addViewEvent($view, $callback, 'composing: ', $priority);
 		}
-
 		return $composers;
 	}
 
@@ -400,15 +388,11 @@ class Factory implements FactoryContract {
 	protected function addViewEvent($view, $callback, $prefix = 'composing: ', $priority = null)
 	{
 		$view = $this->normalizeName($view);
-
 		if ($callback instanceof Closure)
 		{
 			$this->addEventListener($prefix.$view, $callback, $priority);
-
 			return $callback;
-		}
-		elseif (is_string($callback))
-		{
+		} elseif (is_string($callback)) {
 			return $this->addClassEvent($view, $callback, $prefix, $priority);
 		}
 	}
@@ -425,11 +409,8 @@ class Factory implements FactoryContract {
 	protected function addClassEvent($view, $class, $prefix, $priority = null)
 	{
 		$name = $prefix.$view;
-
 		$callback = $this->buildClassEventCallback($class, $prefix);
-
 		$this->addEventListener($name, $callback, $priority);
-
 		return $callback;
 	}
 
@@ -443,15 +424,13 @@ class Factory implements FactoryContract {
 	 */
 	protected function addEventListener($name, $callback, $priority = null)
 	{
-		if(!$this->events) {
+		if(!$this->events || !is_object($this->events)) {
 			return '';
 		}
 		if (is_null($priority))
 		{
 			$this->events->listen($name, $callback);
-		}
-		else
-		{
+		} else {
 			$this->events->listen($name, $callback, $priority);
 		}
 	}
@@ -488,9 +467,7 @@ class Factory implements FactoryContract {
 		{
 			return explode('@', $class);
 		}
-
 		$method = str_contains($prefix, 'composing') ? 'compose' : 'create';
-
 		return array($class, $method);
 	}
 
@@ -502,6 +479,9 @@ class Factory implements FactoryContract {
 	 */
 	public function callComposer(View $view)
 	{
+		if(!$this->events || !is_object($this->events)) {
+			return false;
+		}
 		$this->events->fire('composing: '.$view->getName(), array($view));
 	}
 
@@ -513,6 +493,9 @@ class Factory implements FactoryContract {
 	 */
 	public function callCreator(View $view)
 	{
+		if(!is_object($this->events) || !$this->events) {
+			return false;
+		}
 		$this->events->fire('creating: '.$view->getName(), array($view));
 	}
 
@@ -525,15 +508,11 @@ class Factory implements FactoryContract {
 	 */
 	public function startSection($section, $content = '')
 	{
-		if ($content === '')
-		{
-			if (ob_start())
-			{
+		if ($content === '') {
+			if (ob_start()) {
 				$this->sectionStack[] = $section;
 			}
-		}
-		else
-		{
+		} else {
 			$this->extendSection($section, $content);
 		}
 	}
@@ -651,7 +630,6 @@ class Factory implements FactoryContract {
 	public function flushSections()
 	{
 		$this->sections = array();
-
 		$this->sectionStack = array();
 	}
 
@@ -697,7 +675,7 @@ class Factory implements FactoryContract {
 
 	/**
 	 * Add a location to the array of view locations.
-	 *
+	 * 新增模板查找目录
 	 * @param  string  $location
 	 * @return void
 	 */
@@ -708,7 +686,7 @@ class Factory implements FactoryContract {
 
 	/**
 	 * Add a new namespace to the loader.
-	 *
+	 * 设置命名空间查找模板目录，数组尾部追加
 	 * @param  string  $namespace
 	 * @param  string|array  $hints
 	 * @return void
@@ -720,7 +698,7 @@ class Factory implements FactoryContract {
 
 	/**
 	 * Prepend a new namespace to the loader.
-	 *
+	 * 设置命名空间查找模板目录，数组头部追加
 	 * @param  string  $namespace
 	 * @param  string|array  $hints
 	 * @return void
@@ -746,9 +724,7 @@ class Factory implements FactoryContract {
 		{
 			$this->engines->register($engine, $resolver);
 		}
-
 		unset($this->extensions[$extension]);
-
 		$this->extensions = array_merge(array($extension => $engine), $this->extensions);
 	}
 
@@ -775,7 +751,7 @@ class Factory implements FactoryContract {
 	/**
 	 * Get the view finder instance.
 	 *
-	 * @return \CjsView\ViewFinderInterface
+	 * @return \CjsView\Contracts\ViewFinderInterface
 	 */
 	public function getFinder()
 	{
@@ -785,7 +761,7 @@ class Factory implements FactoryContract {
 	/**
 	 * Set the view finder instance.
 	 *
-	 * @param  \CjsView\ViewFinderInterface  $finder
+	 * @param  \CjsView\Contracts\ViewFinderInterface  $finder
 	 * @return void
 	 */
 	public function setFinder(ViewFinderInterface $finder)
@@ -816,8 +792,7 @@ class Factory implements FactoryContract {
 
 	/**
 	 * Get the IoC container instance.
-	 *
-	 * @return \CjsView\Contracts\Container\Container
+	 * app对象
 	 */
 	public function getContainer()
 	{
@@ -826,8 +801,8 @@ class Factory implements FactoryContract {
 
 	/**
 	 * Set the IoC container instance.
-	 *
-	 * @param  \CjsView\Contracts\Container\Container  $container
+	 * 注入app对象
+	 * @param  $container
 	 * @return void
 	 */
 	public function setContainer(Container $container)
@@ -844,7 +819,7 @@ class Factory implements FactoryContract {
 	 */
 	public function shared($key, $default = null)
 	{
-		return array_get($this->shared, $key, $default);
+		return $this->array_get($this->shared, $key, $default);
 	}
 
 	/**
@@ -875,6 +850,25 @@ class Factory implements FactoryContract {
 	public function getNames()
 	{
 		return $this->names;
+	}
+
+	public static function array_get($array, $key, $default = null)
+	{
+		if (is_null($key)) return $array;
+
+		if (isset($array[$key])) return $array[$key];
+
+		foreach (explode('.', $key) as $segment)
+		{
+			if ( ! is_array($array) || ! array_key_exists($segment, $array))
+			{
+				return $default instanceof Closure ? $default() : $default;
+			}
+
+			$array = $array[$segment];
+		}
+
+		return $array;
 	}
 
 }

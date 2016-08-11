@@ -5,6 +5,7 @@ use ArrayAccess;
 use BadMethodCallException;
 use CjsView\Engines\EngineInterface;
 use CjsView\Contracts\View as ViewContract;
+use CjsView\Contracts\Renderable;
 
 class View implements ArrayAccess, ViewContract {
 
@@ -48,9 +49,9 @@ class View implements ArrayAccess, ViewContract {
 	 *
 	 * @param  \CjsView\Factory  $factory
 	 * @param  \CjsView\Engines\EngineInterface  $engine
-	 * @param  string  $view
-	 * @param  string  $path
-	 * @param  array   $data
+	 * @param  string  $view 规范后的视图文件，不含目录的
+	 * @param  string  $path 模板文件名，含文件目录，即绝对目录
+	 * @param  array   $data 传给模板数据
 	 * @return void
 	 */
 	public function __construct(Factory $factory, EngineInterface $engine, $view, $path, $data = array())
@@ -71,12 +72,7 @@ class View implements ArrayAccess, ViewContract {
 	public function render(Closure $callback = null)
 	{
 		$contents = $this->renderContents();
-
 		$response = isset($callback) ? $callback($this, $contents) : null;
-
-		// Once we have the contents of the view, we will flush the sections if we are
-		// done rendering all views so that there is nothing left hanging over when
-		// another view gets rendered in the future by the application developer.
 		$this->factory->flushSectionsIfDoneRendering();
 
 		return $response ?: $contents;
@@ -89,18 +85,12 @@ class View implements ArrayAccess, ViewContract {
 	 */
 	protected function renderContents()
 	{
-		// We will keep track of the amount of views being rendered so we can flush
-		// the section after the complete rendering operation is done. This will
-		// clear out the sections for any separate views that may be rendered.
 		$this->factory->incrementRender();
 
 		$this->factory->callComposer($this);
 
 		$contents = $this->getContents();
 
-		// Once we've finished rendering the view, we'll decrement the render count
-		// so that each sections get flushed out next time a view is created and
-		// no old sections are staying around in the memory of an environment.
 		$this->factory->decrementRender();
 
 		return $contents;
@@ -153,7 +143,7 @@ class View implements ArrayAccess, ViewContract {
 
 	/**
 	 * Add a piece of data to the view.
-	 *
+	 * 增加or修改模板值
 	 * @param  string|array  $key
 	 * @param  mixed   $value
 	 * @return $this
@@ -163,12 +153,9 @@ class View implements ArrayAccess, ViewContract {
 		if (is_array($key))
 		{
 			$this->data = array_merge($this->data, $key);
-		}
-		else
-		{
+		} else {
 			$this->data[$key] = $value;
 		}
-
 		return $this;
 	}
 
@@ -187,8 +174,8 @@ class View implements ArrayAccess, ViewContract {
 
 	/**
 	 * Add validation errors to the view.
-	 *
-	 * @param  \CjsView\Contracts\Support\MessageProvider|array  $provider
+	 * todo
+	 * @param  \CjsView\Contracts\MessageProvider|array  $provider
 	 * @return $this
 	 */
 	public function withErrors($provider)
@@ -196,12 +183,9 @@ class View implements ArrayAccess, ViewContract {
 		if ($provider instanceof MessageProvider)
 		{
 			$this->with('errors', $provider->getMessageBag());
-		}
-		else
-		{
+		} else {
 			$this->with('errors', new MessageBag((array) $provider));
 		}
-
 		return $this;
 	}
 
@@ -372,16 +356,19 @@ class View implements ArrayAccess, ViewContract {
 	 * @param  string  $method
 	 * @param  array   $parameters
 	 * @return \CjsView\View
-	 *
+	 * 类对象->withAbc("值1");
 	 * @throws \BadMethodCallException
 	 */
 	public function __call($method, $parameters)
 	{
-		if (starts_with($method, 'with'))
-		{
-			return $this->with(snake_case(substr($method, 4)), $parameters[0]);
+		if (strpos($method, 'with') === 0) {
+			$delimiter = '_';
+			$key = substr($method, 4);
+			if ( ! ctype_lower($key)) {
+				$key = strtolower(preg_replace('/(.)(?=[A-Z])/', '$1'.$delimiter, $key));
+			}
+			return $this->with($key, $parameters[0]);
 		}
-
 		throw new BadMethodCallException("Method [$method] does not exist on view.");
 	}
 

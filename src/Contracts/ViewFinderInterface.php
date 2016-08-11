@@ -1,4 +1,4 @@
-<?php namespace CjsView;
+<?php namespace CjsView\Contracts;
 
 interface ViewFinderInterface {
 
